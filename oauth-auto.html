@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OAuth — Connexion ArcGIS préconfigurée</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    body { margin: 0; padding: 20px; background: #f6f8fb; color: #243447; }
+    main { max-width: 570px; margin: 0 auto; padding: 22px; background: #fff; border: 1px solid #dbe3eb; border-radius: 12px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { line-height: 1.5; }
+    label { display: block; font-weight: 650; margin: 16px 0 6px; }
+    input { box-sizing: border-box; display: block; width: 100%; padding: 10px; border: 1px solid #aebccc; border-radius: 6px; font-size: 14px; }
+    button { margin-top: 18px; padding: 11px 16px; border: 0; border-radius: 6px; color: white; background: #0069a5; font-weight: 650; font-size: 14px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    #status { margin-top: 18px; padding: 12px; border-radius: 7px; background: #edf2f7; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #status.success { background: #e9f6ee; color: #155d32; }
+    #status.error { background: #fff0ef; color: #8a2620; }
+    small { color: #50657a; display: block; line-height: 1.5; margin-top: 13px; }
+    code { background: #edf2f7; padding: 2px 4px; border-radius: 3px; }
+  </style>
+  <script src="https://js.arcgis.com/4.34/"></script>
+</head>
+<body>
+<main>
+  <h1>Connexion ArcGIS</h1>
+  <p>Connexion au portail préconfiguré. Aucun identifiant technique à saisir. Aucun KML n'est transmis dans ce test.</p>
+  <button id="login" type="button" disabled>Se connecter à ArcGIS</button>
+  <div id="status" role="status">Chargement du module ArcGIS…</div>
+  <small>La connexion utilise les droits de chaque utilisateur ArcGIS. Ne publiez jamais de clé secrète client ou de jeton temporaire dans un site Web public.</small>
+</main>
+<script>
+  (() => {
+    "use strict";
+    // =======================================================
+    // CONFIGURATION : remplacer UNIQUEMENT ces deux valeurs.
+    // Utiliser l'URL REELLE du portail ayant fonctionné lors du test.
+    // Il est normal que l'ID client soit visible dans le JavaScript public.
+    // NE JAMAIS INSERER DE CLIENT SECRET OU DE JETON TEMPORAIRE.
+    // =======================================================
+    const PORTAL_URL = "https://energis-qal.edf-re.net/portal";
+    const CLIENT_ID = "ohLI1xjn3JuwQdbF";
+
+    const status = document.getElementById("status");
+    const button = document.getElementById("login");
+    let OAuthInfo, identityManager;
+
+    function show(message, kind) {
+      status.textContent = message;
+      status.className = kind || "";
+    }
+    function normalizePortal(value) {
+      const url = new URL(value.trim());
+      if (url.protocol !== "https:") throw new Error("L'URL du portail doit commencer par https://");
+      url.search = "";
+      url.hash = "";
+      return url.href.replace(/\/+$/, "");
+    }
+
+    // ArcGIS Maps SDK gère la connexion OAuth. On ne manipule ni
+    // clé secrète ni jeton temporaire dans cette page.
+    if (typeof window.require !== "function") {
+      show("Impossible de charger le SDK ArcGIS depuis https://js.arcgis.com.", "error");
+      return;
+    }
+
+    let portalUrl;
+    let sharingUrl;
+    window.require(["esri/identity/OAuthInfo", "esri/identity/IdentityManager"], async (OAuthInfoCtor, identity) => {
+      try {
+        if (PORTAL_URL.startsWith("COLLER_ICI_") || CLIENT_ID.startsWith("COLLER_ICI_") || !CLIENT_ID.trim()) {
+          throw new Error("Configuration manquante : ouvrez oauth-auto.html dans GitHub et renseignez PORTAL_URL et CLIENT_ID au début du script.");
+        }
+        portalUrl = normalizePortal(PORTAL_URL);
+        sharingUrl = portalUrl + "/sharing";
+        identityManager = identity;
+        const info = new OAuthInfoCtor({
+          appId: CLIENT_ID.trim(),
+          portalUrl,
+          popup: true,
+          popupCallbackUrl: new URL("oauth-callback.html", location.href).href,
+          flowType: "auto"
+        });
+        identityManager.registerOAuthInfos([info]);
+        button.disabled = false;
+        show("Vérification d'une connexion déjà active…");
+        try {
+          const credential = await identityManager.checkSignInStatus(sharingUrl);
+          show("Déjà connecté ✅\nUtilisateur : " + (credential.userId || "Compte ArcGIS") + "\nAucune donnée n'a été modifiée.", "success");
+        } catch (_) {
+          show("Prêt : cliquez sur « Se connecter à ArcGIS ». Le portail peut demander une autorisation lors de la première connexion.");
+        }
+      } catch (err) {
+        show(err.message || String(err), "error");
+        button.disabled = true;
+      }
+    }, (err) => {
+      show("Impossible de charger le module ArcGIS : " + (err?.message || String(err)), "error");
+    });
+
+    button.addEventListener("click", async () => {
+      if (!identityManager || !sharingUrl) return;
+      button.disabled = true;
+      try {
+        show("Connexion au portail ArcGIS…");
+        const credential = await identityManager.getCredential(sharingUrl);
+        show("Connexion OAuth réussie ✅\nUtilisateur : " + (credential.userId || "Compte ArcGIS") + "\nAucune donnée n'a été modifiée.", "success");
+      } catch (err) {
+        show("Connexion non aboutie : " + (err?.message || String(err)), "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  })();
+</script>
+</body>
+</html>
