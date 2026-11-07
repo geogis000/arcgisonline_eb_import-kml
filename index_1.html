@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Test d'intégration — KML</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#162537;background:#f5f7fb}
+    *{box-sizing:border-box}
+    body{margin:0;padding:20px}
+    main{max-width:630px;margin:auto;background:white;border:1px solid #dfe5ed;border-radius:12px;padding:24px;box-shadow:0 4px 18px rgba(23,37,55,.05)}
+    h1{font-size:1.3rem;margin:0 0 8px}
+    p{line-height:1.5}
+    .sub{color:#536477;font-size:.9rem;margin:0 0 24px}
+    button{border:0;border-radius:8px;padding:11px 17px;color:#fff;background:#1b63b9;font-size:1rem;cursor:pointer}
+    input{max-width:100%;margin-top:10px}
+    .status{padding:12px;background:#edf4fe;border-radius:8px;min-height:43px;margin:14px 0}
+    .small{color:#576574;font-size:.85rem}
+    hr{border:0;border-top:1px solid #e2e8ef;margin:24px 0}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Test d'intégration KML</h1>
+  <p class="sub">Page de test indépendante : aucune connexion à ArcGIS ni transmission de fichier.</p>
+  <p id="js-status" class="status">JavaScript non exécuté</p>
+  <button id="test-btn" type="button">Tester le bouton JavaScript</button>
+  <p id="clicks" class="small">Nombre de clics : 0</p>
+  <hr>
+  <label for="kml"><strong>Tester la lecture locale d'un KML (facultatif)</strong></label>
+  <p class="small">Le fichier est lu dans le navigateur uniquement. Aucun envoi réseau n'est effectué. Utilise un fichier fictif pour ce premier test.</p>
+  <input id="kml" type="file" accept=".kml,application/vnd.google-earth.kml+xml,text/xml,application/xml">
+  <p id="kml-status" class="status">Aucun fichier sélectionné.</p>
+  <p class="small" id="context"></p>
+</main>
+<script>
+  (function () {
+    'use strict';
+    var status = document.getElementById('js-status');
+    status.textContent = '✅ JavaScript exécuté correctement';
+    var clicks = 0;
+    document.getElementById('test-btn').addEventListener('click', function () {
+      clicks++;
+      document.getElementById('clicks').textContent = 'Nombre de clics : ' + clicks;
+    });
+    document.getElementById('context').textContent =
+      window.self === window.top ? 'Contexte : page autonome' : 'Contexte : page intégrée (iframe)';
+    document.getElementById('kml').addEventListener('change', async function (event) {
+      var el = document.getElementById('kml-status');
+      var file = event.target.files && event.target.files[0];
+      if (!file) { el.textContent = 'Aucun fichier sélectionné.'; return; }
+      try {
+        var xml = new DOMParser().parseFromString(await file.text(), 'application/xml');
+        if (xml.querySelector('parsererror')) throw new Error('XML non valide');
+        var lines = Array.from(xml.getElementsByTagName('*')).filter(function (node) {
+          return node.localName === 'LineString';
+        });
+        el.textContent = '✅ Fichier lu localement : ' + file.name + ' — ' + lines.length + ' ligne(s) KML détectée(s).';
+      } catch (e) {
+        el.textContent = '❌ Impossible de lire ce fichier : ' + e.message;
+      }
+    });
+  })();
+</script>
+</body>
+</html>
