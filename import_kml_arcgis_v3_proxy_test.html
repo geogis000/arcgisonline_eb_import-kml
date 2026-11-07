@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Importer un vol drone — ArcGIS Enterprise (V3.1 test proxy)</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color-scheme:light;color:#243247;background:#f5f7fa}
+*{box-sizing:border-box}body{margin:0;padding:14px 10px}.wrap{max-width:840px;margin:auto}h1{font-size:1.35rem;margin:0 0 5px;line-height:1.3}h2{font-size:1.02rem;margin:0 0 12px}p{line-height:1.5;margin:8px 0}.muted{color:#59697c;font-size:.87rem}.panel{background:white;border:1px solid #dce4ec;border-radius:10px;padding:17px;margin:12px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.wide{grid-column:1/-1}label{display:block;font-size:.88rem;font-weight:650;margin-bottom:5px}input,textarea{display:block;width:100%;border:1px solid #aebccc;border-radius:6px;padding:9px 10px;font:inherit;font-size:.94rem;background:#fff;color:#243247}input[type=file]{padding:8px}textarea{min-height:65px;resize:vertical}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}button{background:#075f9f;border:1px solid #075f9f;color:#fff;border-radius:7px;padding:10px 13px;font:inherit;font-size:.9rem;font-weight:650;cursor:pointer}button.secondary{background:#fff;color:#075f9f}button:disabled{opacity:.48;cursor:not-allowed}.notice{white-space:pre-wrap;overflow-wrap:anywhere;border-radius:7px;margin-top:10px;padding:11px 12px;background:#edf2f8;color:#243247;font-size:.88rem}.notice.ok{background:#eaf6ed;color:#165c31}.notice.err{background:#fff0ef;color:#8c2624}.hide{display:none!important}table{width:100%;border-collapse:collapse;font-size:.86rem}td,th{text-align:left;border-bottom:1px solid #e3e8ee;padding:8px 6px}th{background:#f5f7fa}pre{max-height:230px;overflow:auto;background:#f5f7fa;border-radius:6px;padding:10px;font-size:.75rem}code{overflow-wrap:anywhere}input[type=checkbox]{width:16px;height:16px;margin:1px 8px 0 0;flex:0 0 auto}.checkbox{display:flex;align-items:flex-start;font-size:.87rem;line-height:1.5;cursor:pointer}.chip{display:inline-block;border-radius:20px;padding:3px 9px;background:#e4eaf2;color:#354b61;font-size:.78rem;font-weight:650}.chip.ok{background:#e2f2e7;color:#175b32}.foot{font-size:.79rem;color:#637184;line-height:1.6;margin:16px 4px}@media(max-width:570px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}.panel{padding:13px}body{padding:7px}}
+</style>
+<script src="https://js.arcgis.com/4.34/"></script>
+</head>
+<body><main class="wrap">
+  <h1>Importer un vol drone</h1>
+  <p class="muted">Prototype V3.1 · Test du proxy du portail · KML → couche hébergée</p>
+  <section class="panel">
+    <h2>1. Connexion au portail</h2>
+    <div id="loginState" class="notice" role="status">Chargement d'ArcGIS…</div>
+    <div class="actions"><button id="login" type="button" disabled>Se connecter à ArcGIS</button></div>
+  </section>
+  <section class="panel">
+    <h2>2. Couche de destination</h2>
+    <label for="layerUrl">URL de la sous-couche de trajectoires (FeatureServer/1)</label>
+    <input id="layerUrl" type="url" spellcheck="false" autocomplete="off" placeholder="https://.../rest/services/Hosted/.../FeatureServer/1">
+    <div class="actions"><button id="checkLayer" type="button" class="secondary" disabled>Vérifier la couche</button></div>
+    <div id="layerState" class="notice hide" role="status"></div>
+  </section>
+  <section class="panel">
+    <h2>3. Fichier et informations du vol</h2>
+    <div class="grid">
+      <div class="wide"><label for="file">Fichier KML (.kml)</label><input id="file" type="file" accept=".kml,application/vnd.google-earth.kml+xml"></div>
+      <div><label for="idvol">Identifiant de vol (obligatoire)</label><input id="idvol" maxlength="200" placeholder="VOL_TEST_003"></div>
+      <div><label for="datevol">Date du vol (obligatoire)</label><input id="datevol" type="date"></div>
+      <div><label for="tech">Technicien</label><input id="tech" maxlength="200" placeholder="Identifiant ou nom"></div>
+      <div class="wide"><label for="desc">Description / commentaire</label><textarea id="desc" placeholder="Commentaire commun aux trajectoires"></textarea></div>
+    </div>
+    <div class="actions"><button id="parse" type="button">Analyser le KML</button><button id="copy" type="button" class="secondary" disabled>Copier le JSON ArcGIS</button></div>
+    <div id="parseState" class="notice hide" role="status"></div>
+  </section>
+  <section class="panel hide" id="preview">
+    <h2>4. Vérification</h2>
+    <p id="count"></p>
+    <div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Nom KML</th><th>Points</th><th>Type</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <details style="margin-top:12px"><summary>Voir les entités ArcGIS préparées</summary><pre id="json"></pre></details>
+    <p class="muted">Chaque ligne est enregistrée séparément ; toutes les lignes du fichier portent le même <code>id_vol</code>.</p>
+  </section>
+  <section class="panel hide" id="sendPanel">
+    <h2>5. Enregistrement permanent</h2>
+    <p class="muted">Une recherche par <code>id_vol</code> sera faite avant l'envoi pour éviter un doublon évident. Ce contrôle ne remplace pas une contrainte d'unicité côté serveur.</p>
+    <label class="checkbox"><input id="confirm" type="checkbox">Je confirme l'ajout permanent des trajectoires à la couche de test sélectionnée.</label>
+    <div class="actions"><button id="send" type="button" disabled>Enregistrer les trajectoires</button></div>
+    <div id="sendState" class="notice hide" role="status"></div>
+  </section>
+  <p class="foot"><strong>V3.1 — essai technique :</strong> le bouton « Vérifier la couche » passe par le proxy interne du portail, déjà prévu pour les ressources sans CORS. Aucune donnée n’est ajoutée lors de cette vérification. Si la vérification échoue, ne désactive pas la sécurité du navigateur et ne renseigne aucun jeton manuellement.</p>
+  <p class="foot">Les fichiers KML sont lus localement dans ton navigateur ; ils ne sont pas déposés sur GitHub. Les géométries et attributs sont envoyés uniquement au service ArcGIS indiqué, lorsque tu confirmes l'enregistrement. Ne publie jamais de clé secrète ou de jeton temporaire dans cette page. Pour les essais, utiliser une couche de test et des données fictives.</p>
+</main>
+<script>
+(() => {
+'use strict';
+// ====================================================================
+// CONFIGURATION : copier les deux valeurs déjà testées dans oauth-auto.html.
+// La troisième valeur est facultative : elle préremplit la couche cible.
+// Toutes ces chaînes seront visibles dans le code PUBLIC de GitHub Pages.
+// Ne pas y mettre de secret, de jeton, ni d'information confidentielle.
+// ====================================================================
+const PORTAL_URL = "https://energis-qal.edf-re.net/portal";
+const CLIENT_ID = "ohLI1xjn3JuwQdbF";
+const FEATURE_LAYER_URL = ''; // facultatif : HTTPS .../FeatureServer/1
+// ====================================================================
+const $ = id => document.getElementById(id);
+let identity, request, sharingUrl, urlUtils, portalProxyUrl, currentUser = null, layerInfo = null, validatedLayerUrl = '', parsed = [], busy = false, successDone = false;
+const state = (id, message, kind='') => { const e=$(id); e.textContent=message; e.className='notice '+kind; };
+const hide = id => $(id).classList.add('hide');
+function cleanUrl(str) {
+  const u=new URL(str.trim());
+  if(u.protocol!=='https:' || u.username || u.password) throw Error('Utiliser une URL HTTPS valide (sans identifiants).');
+  u.search='';u.hash='';return u.href.replace(/\/+$/,'');
+}
+function baseLayerUrl() {
+  const url=cleanUrl($('layerUrl').value);
+  if(!/\/FeatureServer\/\d+$/i.test(url)) throw Error('La couche doit se terminer par /FeatureServer/0, /1, etc.');
+  return url;
+}
+function updateUI() {
+  $('checkLayer').disabled=busy || !currentUser;
+  $('login').disabled=busy || !identity;
+  $('send').disabled=busy || successDone || !currentUser || !layerInfo || !parsed.length || !$('confirm').checked;
+}
+function invalidateLayer() {layerInfo=null;validatedLayerUrl='';hide('layerState');updateUI();}
+function invalidateParse() {parsed=[];successDone=false;hide('preview');hide('sendPanel');hide('parseState');hide('sendState');$('copy').disabled=true;$('confirm').checked=false;updateUI();}
+function localChildren(el,name){return Array.from(el.children||[]).filter(x=>x.localName===name);}
+function descendants(el,name){return Array.from(el.getElementsByTagName('*')).filter(x=>x.localName===name);}
+function directText(el,name){const c=localChildren(el,name)[0];return c?c.textContent.trim():'';}
+function parseCoords(s){const pts=[];for(const part of s.trim().split(/\s+/)){if(!part)continue;const bits=part.split(',');if(bits.length<2)throw Error('Coordonnée KML invalide : '+part.slice(0,60));const x=Number(bits[0]),y=Number(bits[1]);if(!Number.isFinite(x)||!Number.isFinite(y)||x < -180||x > 180||y < -90||y > 90)throw Error('Coordonnée hors WGS84 : '+part.slice(0,60));pts.push([x,y]);}return pts;}
+function parseKML(xml){const doc=new DOMParser().parseFromString(xml,'application/xml');if(doc.getElementsByTagName('parsererror').length)throw Error('Le KML contient du XML invalide.');const root=doc.documentElement;if(!root||root.localName!=='kml')throw Error('Le fichier ne paraît pas être un KML.');const lines=[];for(const pm of descendants(root,'Placemark')){const name=directText(pm,'name')||'Trajectoire sans nom';for(const line of descendants(pm,'LineString')){const c=descendants(line,'coordinates')[0];if(!c)continue;const pts=parseCoords(c.textContent);if(pts.length>=2)lines.push({name,paths:[pts],points:pts.length,type:'LineString'});}for(const track of descendants(pm,'Track')){const coords=localChildren(track,'coord');if(!coords.length)continue;const pts=coords.map(c=>{const bits=c.textContent.trim().split(/\s+/).map(Number);if(bits.length<2||!Number.isFinite(bits[0])||!Number.isFinite(bits[1])||bits[0]<-180||bits[0]>180||bits[1]<-90||bits[1]>90)throw Error('Coordonnée gx:Track invalide.');return[bits[0],bits[1]];});if(pts.length>=2)lines.push({name,paths:[pts],points:pts.length,type:'gx:Track'});}}return lines;}
+function buildFeatures(){const id=$('idvol').value.trim(),date=$('datevol').value,tech=$('tech').value.trim(),desc=$('desc').value.trim();return parsed.map(p=>({geometry:{paths:p.paths,spatialReference:{wkid:4326}},attributes:{name:p.name,id_vol:id,date_vol:date,...(tech?{technicien:tech}:{}),...(desc?{description:desc}:{})}}));}
+function refreshPreview(){if(!parsed.length)return;successDone=false;const records=buildFeatures();$('json').textContent=JSON.stringify(records,null,2);$('count').textContent=`${parsed.length} trajectoire(s), ${parsed.reduce((sum,p)=>sum+p.points,0)} points au total.`;$('rows').replaceChildren();for(let i=0;i<parsed.length;i++){const p=parsed[i];const tr=document.createElement('tr');for(const cell of [i+1,p.name,p.points,p.type]){const td=document.createElement('td');td.textContent=cell;tr.append(td);} $('rows').append(tr);} $('confirm').checked=false;hide('sendState');updateUI();}
+async function doRequest(url, query={}, method='get') { const res=await request(url,{method,responseType:'json',query:{f:'json',...query}});return res.data; }
+function friendlyError(e){let msg=e?.message||String(e);if(e?.details?.messages?.length)msg+=' '+e.details.messages.join(' ');if(e?.details?.httpStatus)msg+=' (HTTP '+e.details.httpStatus+')';return msg;}
+async function verifyLayer() {
+  if(!currentUser)throw Error('Connecte-toi d’abord au portail.');
+  const url=baseLayerUrl();
+  // Test du proxy NATIF du portail, sans serveur tiers et sans modifier les données.
+  // Les demandes vers cette couche, y compris /query et /addFeatures, utiliseront ce proxy.
+  if (!urlUtils || !portalProxyUrl) throw Error('Proxy ArcGIS non initialisé.');
+  urlUtils.addProxyRule({urlPrefix:url,proxyUrl:portalProxyUrl});
+  const meta=await doRequest(url);
+  if(meta?.error)throw Error('ArcGIS : '+meta.error.message);
+  if(meta.geometryType!=='esriGeometryPolyline')throw Error('Cette sous-couche n’est pas une couche de lignes.');
+  if(!String(meta.capabilities||'').includes('Create'))throw Error('Cette couche ne déclare pas la capacité Create.');
+  const fields=Array.isArray(meta.fields)?meta.fields:[];const names=new Set(fields.map(f=>f.name));
+  for(const name of ['id_vol','date_vol','name'])if(!names.has(name))throw Error('Champ absent de la couche : '+name);
+  const dateField=fields.find(f=>f.name==='date_vol');
+  if(dateField.type!=='esriFieldTypeDateOnly')throw Error('Le champ date_vol est de type '+dateField.type+' ; cette V3 attend esriFieldTypeDateOnly.');
+  layerInfo=meta;validatedLayerUrl=url;
+  state('layerState','Couche de lignes confirmée via le proxy du portail ✅\nCapacité Create annoncée par le service (droits utilisateur à confirmer lors de l’envoi). Compte : '+currentUser+'\nChamps id_vol / date_vol / name reconnus.','ok');
+  updateUI();
+}
+async function checkDuplicate(url, id){
+  const where="id_vol = '"+id.replace(/'/g,"''")+"'";
+  const result=await doRequest(url+'/query',{where,returnCountOnly:'true'});
+  if(!Number.isInteger(result.count))throw Error('La couche n’a pas retourné le nombre d’entités pour la vérification anti-doublon.');
+  return result.count;
+}
+async function submit(){
+  if(busy||successDone||!$('confirm').checked||!parsed.length||!currentUser||!layerInfo)return;
+  busy=true;updateUI();
+  state('sendState','Vérification des doublons puis enregistrement…');
+  try {
+    const url=baseLayerUrl();if(url!==validatedLayerUrl)throw Error('L’URL de destination a changé : vérifie de nouveau la couche.');
+    const id=$('idvol').value.trim(),date=$('datevol').value;
+    if(!id)throw Error('Renseigne un identifiant de vol.');if(!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Renseigne une date valide.');
+    const existing=await checkDuplicate(url,id);
+    if(existing>0)throw Error(`${existing} trajectoire(s) avec l’identifiant « ${id} » existent déjà. Enregistrement annulé pour éviter un doublon. Utilise un autre identifiant ou vérifie la couche.`);
+    const features=buildFeatures();
+    const data=await doRequest(url+'/addFeatures',{features:JSON.stringify(features),rollbackOnFailure:'true'},'post');
+    if(data?.error)throw Error('ArcGIS : '+data.error.message+' '+(data.error.details||[]).join(' '));
+    if(!Array.isArray(data.addResults)||data.addResults.length!==features.length)throw Error('Réponse inattendue d’ArcGIS : vérifie la couche avant de recommencer.');
+    const ok=data.addResults.filter(x=>x.success),failed=data.addResults.filter(x=>!x.success);
+    if(failed.length)throw Error(`${ok.length} ajout(s) confirmé(s), ${failed.length} échec(s). Vérifie impérativement la couche avant un nouvel essai. ${JSON.stringify(failed).slice(0,800)}`);
+    successDone=true;$('confirm').checked=false;
+    state('sendState',`${ok.length} trajectoire(s) enregistrée(s) ✅\nObjectID : ${ok.map(x=>x.objectId).join(', ')}.\nActualise la carte si elles ne sont pas encore visibles. Ne renvoie pas ce vol.`,'ok');
+  } catch(e){state('sendState','Enregistrement non confirmé : '+friendlyError(e)+'\nSi l’erreur arrive après l’envoi, vérifie la couche avant de réessayer.','err');}
+  finally{busy=false;updateUI();}
+}
+$('layerUrl').value=FEATURE_LAYER_URL;
+$('layerUrl').addEventListener('input',invalidateLayer);
+$('checkLayer').addEventListener('click',async()=>{if(busy)return;busy=true;updateUI();state('layerState','Vérification de la couche…');try{await verifyLayer();}catch(e){invalidateLayer();state('layerState','Vérification impossible : '+friendlyError(e),'err');}finally{busy=false;updateUI();}});
+$('file').addEventListener('change',invalidateParse);
+$('parse').addEventListener('click',async()=>{invalidateParse();try{const file=$('file').files[0];if(!file)throw Error('Sélectionne un fichier KML.');if(file.size>20*1024*1024)throw Error('Le fichier dépasse la limite de 20 Mo de ce prototype.');parsed=parseKML(await file.text());if(!parsed.length)throw Error('Aucune ligne LineString ou gx:Track exploitable détectée.');refreshPreview();$('preview').classList.remove('hide');$('sendPanel').classList.remove('hide');$('copy').disabled=false;state('parseState',`${parsed.length} trajectoire(s) extraite(s). Vérifie les attributs et la destination avant enregistrement.`,'ok');}catch(e){state('parseState',friendlyError(e),'err');}});
+for(const id of ['idvol','datevol','tech','desc'])$(id).addEventListener('input',refreshPreview);
+$('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(JSON.stringify(buildFeatures()));state('parseState','JSON ArcGIS copié dans le presse-papiers.','ok');}catch(e){state('parseState','Copie automatique bloquée. Ouvre « Voir les entités ArcGIS préparées » pour copier manuellement.','err');}});
+$('confirm').addEventListener('change',updateUI);$('send').addEventListener('click',submit);
+$('login').addEventListener('click',async()=>{if(!identity||busy)return;busy=true;updateUI();state('loginState','Connexion ArcGIS en cours…');try{const credential=await identity.getCredential(sharingUrl,{oAuthPopupConfirmation:false});currentUser=credential.userId||'Utilisateur ArcGIS';state('loginState','Connecté ✅\nCompte : '+currentUser,'ok');}catch(e){state('loginState','Connexion non aboutie : '+friendlyError(e),'err');}finally{busy=false;updateUI();}});
+if(typeof window.require!=='function'){state('loginState','Le SDK ArcGIS ne s’est pas chargé.','err');return;}
+window.require(['esri/identity/OAuthInfo','esri/identity/IdentityManager','esri/request','esri/core/urlUtils'], async (OAuthInfo,identityManager,esriRequest,arcgisUrlUtils)=>{
+  try{
+    if(PORTAL_URL.startsWith('COLLER_ICI_')||CLIENT_ID.startsWith('COLLER_ICI_')||!CLIENT_ID.trim())throw Error('Renseigne PORTAL_URL et CLIENT_ID dans le fichier HTML (mêmes valeurs que la page OAuth validée).');
+    const portal=cleanUrl(PORTAL_URL);sharingUrl=portal+'/sharing';identity=identityManager;request=esriRequest;urlUtils=arcgisUrlUtils;portalProxyUrl=sharingUrl+'/proxy';
+    const info=new OAuthInfo({appId:CLIENT_ID.trim(),portalUrl:portal,popup:true,popupCallbackUrl:new URL('oauth-callback.html',location.href).href,flowType:'auto'});
+    identity.registerOAuthInfos([info]);updateUI();
+    state('loginState','Recherche d’une session ArcGIS existante…');
+    try{const cred=await identity.checkSignInStatus(sharingUrl);currentUser=cred.userId||'Utilisateur ArcGIS';state('loginState','Déjà connecté ✅\nCompte : '+currentUser,'ok');}
+    catch(_){state('loginState','Clique sur « Se connecter à ArcGIS ». Aucun secret ne sera demandé par cette page.');}
+    updateUI();
+  }catch(e){state('loginState','Initialisation impossible : '+friendlyError(e),'err');updateUI();}
+},err=>{state('loginState','Chargement des modules ArcGIS impossible : '+friendlyError(err),'err');});
+})();
+</script>
+</body></html>
