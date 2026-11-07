@@ -86,7 +86,9 @@
         button.disabled = false;
         show("Vérification d'une connexion déjà active…");
         try {
-          const credential = await identityManager.checkSignInStatus(sharingUrl);
+          const credential = await identityManager.getCredential(sharingUrl, {
+            oAuthPopupConfirmation: false
+          });
           show("Déjà connecté ✅\nUtilisateur : " + (credential.userId || "Compte ArcGIS") + "\nAucune donnée n'a été modifiée.", "success");
         } catch (_) {
           show("Prêt : cliquez sur « Se connecter à ArcGIS ». Le portail peut demander une autorisation lors de la première connexion.");
@@ -104,7 +106,9 @@
       button.disabled = true;
       try {
         show("Connexion au portail ArcGIS…");
-        const credential = await identityManager.getCredential(sharingUrl);
+        const credential = await identityManager.getCredential(sharingUrl, {
+            oAuthPopupConfirmation: false
+          });
         show("Connexion OAuth réussie ✅\nUtilisateur : " + (credential.userId || "Compte ArcGIS") + "\nAucune donnée n'a été modifiée.", "success");
       } catch (err) {
         show("Connexion non aboutie : " + (err?.message || String(err)), "error");
