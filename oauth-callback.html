@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retour OAuth ArcGIS</title>
+</head>
+<body>
+  <p id="message">Finalisation de la connexion ArcGIS…</p>
+  <script>
+    (function () {
+      "use strict";
+      const message = document.getElementById("message");
+      try {
+        if (!window.opener) {
+          message.textContent = "La page de retour OAuth doit être ouverte par la page de test. Revenez à celle-ci et cliquez sur Se connecter.";
+          return;
+        }
+        if (window.location.hash) {
+          let esriId;
+          try { esriId = window.opener.require("esri/kernel").id; } catch (_) {}
+          if (esriId) {
+            esriId.setOAuthResponseHash(window.location.hash);
+          } else {
+            window.opener.dispatchEvent(new CustomEvent("arcgis:auth:hash", { detail: window.location.hash }));
+          }
+        } else if (window.location.search) {
+          window.opener.dispatchEvent(new CustomEvent("arcgis:auth:location:search", { detail: window.location.search }));
+        } else {
+          message.textContent = "Aucun résultat OAuth reçu dans l'URL.";
+          return;
+        }
+        window.close();
+        message.textContent = "Connexion transmise. Vous pouvez fermer cette fenêtre.";
+      } catch (error) {
+        message.textContent = "Retour OAuth impossible. La fenêtre de retour et la page appelante doivent être sur la même origine. Détail : " + error.message;
+      }
+    }());
+  </script>
+</body>
+</html>
